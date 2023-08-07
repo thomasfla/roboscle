@@ -99,7 +99,7 @@ static void MX_NVIC_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 uint32_t a1,a2, a3;
-
+uint32_t cpt = 0;
 //volatile float old_position;
 //volatile float q, q_dot;
 //volatile float q_d=0, q_dot_d=0, tau_ff=0.0;
@@ -145,43 +145,12 @@ void unpack_command_buffer()
 extern volatile int32_t enc_index;
 volatile int speed_tracking_counter = 0;
 
-//float get_encoder_position()
-//{
-//	return 2*3.1415*(float)(enc_index*M1_PULSE_NBR + (int32_t) TIM4->CNT)/M1_PULSE_NBR;
-//}
 
 int32_t get_encoder_position()
 {
 	return (enc_index*M1_PULSE_NBR + (int32_t) TIM4->CNT);
 }
 
-//void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-//{
-//	HAL_GPIO_TogglePin(USER_DEBUG_GPIO_Port,USER_DEBUG_Pin);
-//	q = get_encoder_position();
-//	if (htim->Instance == TIM2)
-//	{
-//		speed_tracking_counter ++;
-//		if(speed_tracking_counter > 20)
-//		{
-//			speed_tracking_counter = 0;
-//			q_dot = 200*(q - old_position);
-//			old_position = q;
-//		}
-//
-//        qd_t cmd;
-//		cmd.d = 0;
-////		float e = pos_gain*(q_d-q);
-//		command = (int16_t)((pos_gain*(q_d-q) + vel_gain/100*(q_dot_d-q_dot)+tau_ff)*current_conversion_constant);
-//
-//		if(command>IQMAX)
-//			command = IQMAX-10;
-//		else if(-command>IQMAX)
-//			command = -IQMAX+10;
-//		cmd.q = command;
-//		MC_SetCurrentReferenceMotor1(cmd);
-//	}
-//}
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -191,12 +160,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 //		vel_gain = 0;
 //		pos_gain = 0;
 //		tau_ff = 0;
-	}else
-//		unpack_command_buffer(); // Decode the latest command information received by the driver
+	}
+	unpack_command_buffer(); // Decode the latest command information received by the driver
 	// Load the can state packet with the latest sensor measurements
-	state_packet.data.q = q;
 	state_packet.data.q_dot = q_dot;
+	state_packet.data.q = q;
 
+	//vel_gain = 0;
+	//pos_gain = 0;
+	//q_d = 0;
+	//tau_ff=0;
+
+	cpt++;
 	q = get_encoder_position();
 	if (htim->Instance == TIM2)
 	{
@@ -209,25 +184,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		}
 
         qd_t cmd;
-		cmd.d = 100;
-		if(abs(q)>M1_PULSE_NBR*2)
-		{
-			pos_gain=0;
-			vel_gain = 0;
-			command = pos_gain*(q_d-q) + vel_gain*(q_dot_d-q_dot)+tau_ff+compensation[TIM4->CNT>>8];
-		}
-		else
-		{
-			command = pos_gain*(q_d-q) + vel_gain*(q_dot_d-q_dot)+tau_ff;
-		}
+		command = pos_gain*(q_d-q) + vel_gain*(q_dot_d-q_dot)+tau_ff;
 		if(command>2500)
 			command = 2500;
 		else if(-command>2500)
 			command = -2500;
+		cmd.d = 0;
 		cmd.q = command;
-		compensation[TIM4->CNT>>8]=command;
+		//compensation[TIM4->CNT>>8]=command;
 
 		state_packet.data.tau = command;
+
 		MC_SetCurrentReferenceMotor1(cmd);
 	}
 }
@@ -283,25 +250,25 @@ int main(void)
   /* Initialize interrupts */
   MX_NVIC_Init();
   /* USER CODE BEGIN 2 */
-//  can_init(&hfdcan1);
+  can_init(&hfdcan1);
   HAL_TIM_Base_Start_IT(&htim2);
   qd_t cmd;
   cmd.d = 0;
-  cmd.q = 1500;
+  cmd.q = 0;
   MC_SetCurrentReferenceMotor1(cmd);
   MC_StartMotor1();
-  //  MC_AcknowledgeFaultMotor1(void)
+  //MC_AcknowledgeFaultMotor1(void);
 //  MC_StopMotor1(void)
   old_position = get_encoder_position();
   q_d = get_encoder_position();
   float time = 0;
   int32_t start = HAL_GetTick();
-int32_t cnt=0;
-  memset(compensation,0,sizeof(compensation));
+  int32_t cnt=0;
+  //memset(compensation,0,sizeof(compensation));
   while(1){
 //	  time = (float)(HAL_GetTick()-start)/1000.0;
-//	  vel_gain = 0;
-//	  pos_gain = 4;
+//	  vel_gain = 20;
+//	  pos_gain = 1;
 //	  q_d = 800 * sin(time);
 	  if(MC_GetOccurredFaultsMotor1())
 	  {
@@ -313,12 +280,15 @@ int32_t cnt=0;
 		  MC_StartMotor1();
 		  HAL_Delay(2000);
 	  }
-	  vel_gain = 5;
-	  pos_gain = 6;
-	  q_d = cnt;
 	  cnt++;
-	  HAL_Delay(100);
-//	  can_events();
+	  HAL_Delay(1);
+	  sendFDCANRespond(0x456, state_packet.buffer, sizeof(state_packet.buffer));
+	  a1 = MC_GetOccurredFaultsMotor1();
+	  a3 = MC_GetCurrentFaultsMotor1();
+	  //if (a1) sendFDCANRespond(0x777, state_packet.buffer, sizeof(state_packet.buffer));
+	  //if (a3) sendFDCANRespond(0x888, state_packet.buffer, sizeof(state_packet.buffer));
+	  //sendFDCANRespond(0x111, &cpt, sizeof(cpt));
+	  //can_events();
   }
   /* USER CODE END 2 */
 
