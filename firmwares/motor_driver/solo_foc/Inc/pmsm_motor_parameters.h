@@ -62,7 +62,7 @@
                                                  signal H1 and the maximum of
                                                  the Bemf induced on phase A */
 /*** Quadrature encoder ***/
-#define M1_ENCODER_PPR             1024  /*!< Number of pulses per
+#define M1_ENCODER_PPR             5000  /*!< Number of pulses per
                                             revolution */
 
 #endif /* PMSM_MOTOR_PARAMETERS_H */
