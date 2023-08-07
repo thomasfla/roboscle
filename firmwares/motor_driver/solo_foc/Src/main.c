@@ -34,7 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+//#define LOCAL_SINUSOID_TEST //This is useful to test generate a command regardless of the CAN commands frame
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -161,7 +161,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 //		pos_gain = 0;
 //		tau_ff = 0;
 	}
+#ifndef LOCAL_SINUSOID_TEST
 	unpack_command_buffer(); // Decode the latest command information received by the driver
+#endif
 	// Load the can state packet with the latest sensor measurements
 	state_packet.data.q_dot = q_dot;
 	state_packet.data.q = q;
@@ -266,14 +268,17 @@ int main(void)
   int32_t cnt=0;
   //memset(compensation,0,sizeof(compensation));
   while(1){
-//	  time = (float)(HAL_GetTick()-start)/1000.0;
-//	  vel_gain = 20;
-//	  pos_gain = 1;
-//	  q_d = 800 * sin(time);
+#ifdef LOCAL_SINUSOID_TEST
+	  time = (float)(HAL_GetTick()-start)/1000.0;
+	  vel_gain = 20;
+	  pos_gain = 1;
+	  q_d = 30000 * sin(10*time);
+	  q_dot_d = 0;
+#endif
 	  if(MC_GetOccurredFaultsMotor1())
 	  {
 		  MC_AcknowledgeFaultMotor1();
-		  HAL_Delay(100);
+		  HAL_Delay(1);
 		  cmd.d = 0;
 		  cmd.q = 0;
 		  MC_SetCurrentReferenceMotor1(cmd);
