@@ -107,7 +107,7 @@ uint32_t cpt = 0;
 //volatile int16_t command = 0;
 //volatile float current_conversion_constant = (65536*RSHUNT*AMPLIFICATION_GAIN)/3.3;
 volatile int32_t old_position;
-volatile int32_t q, q_dot;
+volatile int32_t q=0, q_dot=0;
 volatile int32_t q_d=0, q_dot_d=0, tau_ff=0;
 volatile int32_t vel_gain=0, pos_gain=0;
 volatile int32_t command = 0;
@@ -148,13 +148,29 @@ volatile int speed_tracking_counter = 0;
 
 int32_t get_encoder_position()
 {
-	return (enc_index*M1_PULSE_NBR + (int32_t) TIM4->CNT);
+	static int32_t enc_old =0;
+	static int32_t enc_turns =0;
+	int32_t enc = TIM4->CNT; // Strange bug here, from time to time, the return value is 2147443650 or opposite. Todo check timer configuration and datasheet
+	if (enc > M1_PULSE_NBR * 2) return(enc_turns*M1_PULSE_NBR + enc_old); //Quick fix, let's not update in case of values outside of 2 turns
+	if (enc < -M1_PULSE_NBR * 2) return(enc_turns*M1_PULSE_NBR + enc_old);
+
+	if (enc - enc_old > M1_PULSE_NBR/2)
+	{
+		enc_turns--;
+	}
+	else if (enc - enc_old < -M1_PULSE_NBR/2)
+	{
+		enc_turns++;
+	}
+	enc_old = enc;
+	return (enc_turns*M1_PULSE_NBR + enc);
 }
 
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	HAL_GPIO_TogglePin(USER_DEBUG_GPIO_Port,USER_DEBUG_Pin);
+	//HAL_GPIO_TogglePin(USER_DEBUG_GPIO_Port,USER_DEBUG_Pin);
+	HAL_GPIO_WritePin(USER_DEBUG_GPIO_Port,USER_DEBUG_Pin,1);
 	if(HAL_GetTick() - latest_command_timestamp > 200)
 	{
 //		vel_gain = 0;
@@ -164,19 +180,20 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 #ifndef LOCAL_SINUSOID_TEST
 	unpack_command_buffer(); // Decode the latest command information received by the driver
 #endif
-	// Load the can state packet with the latest sensor measurements
-	state_packet.data.q_dot = q_dot;
-	state_packet.data.q = q;
+
 
 	//vel_gain = 0;
 	//pos_gain = 0;
 	//q_d = 0;
 	//tau_ff=0;
 
-	cpt++;
-	q = get_encoder_position();
 	if (htim->Instance == TIM2)
 	{
+		cpt++;
+		// Load the can state packet with the latest sensor measurements
+		q = get_encoder_position();
+		state_packet.data.q_dot = q_dot;
+		state_packet.data.q = q;
 		speed_tracking_counter ++;
 		if(speed_tracking_counter > 10)
 		{
@@ -198,7 +215,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		state_packet.data.tau = command;
 
 		MC_SetCurrentReferenceMotor1(cmd);
+
 	}
+	HAL_GPIO_WritePin(USER_DEBUG_GPIO_Port,USER_DEBUG_Pin,0);
 }
 
 /* USER CODE END 0 */

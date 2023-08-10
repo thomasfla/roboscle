@@ -31,7 +31,6 @@ def receive_state_packet(bus):
         if message and message.arbitration_id == 0x456:  
             with lock:
                 q_latest, q_dot_latest, tau_latest = struct.unpack('<lhh', message.data)
-            print ("packet!")
         
 def pack_command_buffer(pos_gain, vel_gain, tau_ff, q_dot_d, q_d):
     assert 0 <= pos_gain <= 255
@@ -66,7 +65,6 @@ for i in range (int(T/dt)):
     t=i*dt
     q_d = int(100000*sin(2*pi*f*t));
     data = pack_command_buffer(1, 20, 0, 0, q_d)
-    # ~ data = pack_command_buffer(0, 0, 0, 0, q_d)
     message = can.Message(arbitration_id=0x123, data=data, is_extended_id=False)
     bus.send(message)
     with lock:

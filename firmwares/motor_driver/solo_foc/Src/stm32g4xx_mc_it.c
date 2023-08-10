@@ -52,7 +52,6 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-   volatile int32_t enc_index = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -174,12 +173,7 @@ void SPD_TIM_M1_IRQHandler(void)
       LL_TIM_ClearFlag_UPDATE(ENCODER_M1.TIMx);
       (void)ENC_IRQHandler(&ENCODER_M1);
       /* USER CODE BEGIN M1 ENCODER_Update */
-      // Add your code here to read the encoder value without overflow and the one that goes from minus to plus values!
-      if(ENCODER_M1.TIMx->CNT == 0)
-        {
-      	  enc_index++;
-        }else
-      	  enc_index--;
+
       /* USER CODE END M1 ENCODER_Update   */
     }
     else
